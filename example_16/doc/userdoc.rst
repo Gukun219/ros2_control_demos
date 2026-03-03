@@ -5,13 +5,21 @@
 Example 16: 6-DOF robot with admittance controller
 ===================================================
 
-This example demonstrates the use of the ``admittance_controller`` from
-``ros2_controllers`` with a 6-DOF robot (r6bot) that includes a force-torque
-sensor at the end-effector.
+This example demonstrates a custom admittance controller implementation
+with a 6-DOF robot (r6bot) that includes a force-torque sensor at the
+end-effector.
 
 The admittance controller implements a spring-mass-damper system in Cartesian
 space, allowing the robot to comply with external forces while tracking a
-desired target pose.
+desired target pose. The admittance control law is:
+
+.. math::
+
+   M \cdot \ddot{x} + D \cdot \dot{x} + K \cdot x = F_{ext}
+
+where ``M`` is virtual mass, ``D`` is damping, ``K`` is stiffness,
+``x`` is Cartesian displacement, and ``F_ext`` is the external force/torque
+measured by the sensor.
 
 Architecture
 ------------
@@ -23,10 +31,11 @@ The demo uses the following components:
   force-torque sensor that generates sinusoidal force readings for
   demonstration purposes.
 
-* **Admittance Controller** (``admittance_controller/AdmittanceController``):
-  Computes position/velocity commands based on the difference between
-  desired and actual Cartesian pose, modulated by the measured
-  force/torque through admittance dynamics.
+* **Admittance Controller** (``ros2_control_demo_example_16/AdmittanceController``):
+  A custom controller that computes position/velocity commands based on the
+  difference between desired and actual Cartesian pose, modulated by the
+  measured force/torque through admittance dynamics. Uses KDL for forward
+  kinematics and Jacobian computation.
 
 * **Force-Torque Sensor Broadcaster**
   (``force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster``):
@@ -74,17 +83,17 @@ Tutorial steps
 
     ros2 topic echo /force_torque_sensor_broadcaster/wrench
 
-5. To send a target pose trajectory, open another terminal and run:
+5. To view the measured wrench from the admittance controller:
+
+   .. code-block:: shell
+
+    ros2 topic echo /admittance_controller/measured_wrench
+
+6. To send a target pose trajectory, open another terminal and run:
 
    .. code-block:: shell
 
     ros2 launch ros2_control_demo_example_16 send_target_pose.launch.py
-
-6. To dynamically adjust admittance parameters (e.g., stiffness):
-
-   .. code-block:: shell
-
-    ros2 param set /admittance_controller admittance.stiffness "[100.0, 100.0, 100.0, 10.0, 10.0, 10.0]"
 
 Configuration
 -------------
@@ -92,9 +101,10 @@ Configuration
 The admittance controller is configured via
 ``bringup/config/r6bot_admittance_controller.yaml``. Key parameters include:
 
-* ``admittance.mass``: Virtual mass for each Cartesian axis
-* ``admittance.damping_ratio``: Damping ratio (relative to critical damping)
+* ``admittance.mass``: Virtual mass for each Cartesian axis [x, y, z, rx, ry, rz]
+* ``admittance.damping``: Damping coefficient for each axis
 * ``admittance.stiffness``: Virtual stiffness for each axis
 * ``admittance.selected_axes``: Enable/disable admittance on specific axes
-* ``kinematics.plugin_name``: Kinematics solver plugin (KDL by default)
+* ``kinematics.base``: Base link name for kinematic chain
+* ``kinematics.tip``: End-effector link name for kinematic chain
 * ``ft_sensor.name``: Name of the force-torque sensor in the hardware description

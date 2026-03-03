@@ -14,6 +14,16 @@ set(HW_IF_INCLUDE_DEPENDS
   rcpputils
   hardware_interface
 )
+set(CONTROLLER_INCLUDE_DEPENDS
+  controller_interface
+  geometry_msgs
+  hardware_interface
+  kdl_parser
+  pluginlib
+  rclcpp
+  rclcpp_lifecycle
+  realtime_tools
+)
 set(REF_GEN_INCLUDE_DEPENDS
   geometry_msgs
   rclcpp
@@ -22,7 +32,11 @@ set(REF_GEN_INCLUDE_DEPENDS
 # find dependencies
 find_package(backward_ros REQUIRED)
 find_package(ament_cmake REQUIRED)
+find_package(Eigen3 REQUIRED)
 foreach(Dependency IN ITEMS ${HW_IF_INCLUDE_DEPENDS})
+  find_package(${Dependency} REQUIRED)
+endforeach()
+foreach(Dependency IN ITEMS ${CONTROLLER_INCLUDE_DEPENDS})
   find_package(${Dependency} REQUIRED)
 endforeach()
 foreach(Dependency IN ITEMS ${REF_GEN_INCLUDE_DEPENDS})
@@ -30,35 +44,44 @@ foreach(Dependency IN ITEMS ${REF_GEN_INCLUDE_DEPENDS})
 endforeach()
 
 ## COMPILE
-add_executable(send_target_pose reference_generator/send_target_pose.cpp)
 
+# Reference generator executable
+add_executable(send_target_pose reference_generator/send_target_pose.cpp)
 ament_target_dependencies(
   send_target_pose PUBLIC
   ${REF_GEN_INCLUDE_DEPENDS}
 )
 
+# Shared library with hardware interface and controller
 add_library(
   ros2_control_demo_example_16
   SHARED
   hardware/r6bot_hardware.cpp
+  controller/admittance_controller.cpp
 )
 
 target_compile_features(ros2_control_demo_example_16 PUBLIC cxx_std_17)
 target_include_directories(ros2_control_demo_example_16 PUBLIC
-$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/hardware/include>
-$<INSTALL_INTERFACE:include/ros2_control_demo_example_16>
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/hardware/include>
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/controller/include>
+  $<INSTALL_INTERFACE:include/ros2_control_demo_example_16>
 )
+target_link_libraries(ros2_control_demo_example_16 PUBLIC Eigen3::Eigen)
 ament_target_dependencies(
   ros2_control_demo_example_16 PUBLIC
   ${HW_IF_INCLUDE_DEPENDS}
+  ${CONTROLLER_INCLUDE_DEPENDS}
 )
 
-# Export hardware plugins
+# Export hardware and controller plugins
 pluginlib_export_plugin_description_file(hardware_interface ros2_control_demo_example_16.xml)
+pluginlib_export_plugin_description_file(controller_interface ros2_control_demo_example_16.xml)
 
 # INSTALL
 install(
-  DIRECTORY hardware/include/
+  DIRECTORY
+    hardware/include/
+    controller/include/
   DESTINATION include/ros2_control_demo_example_16
 )
 install(
@@ -98,5 +121,5 @@ endif()
 
 ## EXPORTS
 ament_export_targets(export_ros2_control_demo_example_16 HAS_LIBRARY_TARGET)
-ament_export_dependencies(${HW_IF_INCLUDE_DEPENDS} ${REF_GEN_INCLUDE_DEPENDS})
+ament_export_dependencies(${HW_IF_INCLUDE_DEPENDS} ${CONTROLLER_INCLUDE_DEPENDS} ${REF_GEN_INCLUDE_DEPENDS})
 ament_package()
