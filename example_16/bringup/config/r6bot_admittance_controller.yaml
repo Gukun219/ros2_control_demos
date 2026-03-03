@@ -1,0 +1,112 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 100  # Hz
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    force_torque_sensor_broadcaster:
+      type: force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster
+
+    admittance_controller:
+      type: admittance_controller/AdmittanceController
+
+
+force_torque_sensor_broadcaster:
+  ros__parameters:
+    sensor_name: tcp_fts_sensor
+    frame_id: ft_frame
+
+
+admittance_controller:
+  ros__parameters:
+    joints:
+      - joint_1
+      - joint_2
+      - joint_3
+      - joint_4
+      - joint_5
+      - joint_6
+
+    command_interfaces:
+      - position
+      - velocity
+
+    state_interfaces:
+      - position
+      - velocity
+
+    # Kinematics configuration
+    kinematics:
+      plugin_name: kinematics_interface_kdl/KinematicsInterfaceKDL
+      plugin_package: kinematics_interface_kdl
+      base: base_link
+      tip: tool0
+      alpha: 0.0005
+
+    # Force-torque sensor configuration
+    ft_sensor:
+      name: tcp_fts_sensor
+      frame:
+        id: ft_frame
+      filter_coefficient: 0.1
+
+    # Control frame for admittance calculation
+    control:
+      frame:
+        id: tool0
+
+    # Fixed world frame (gravity reference)
+    fixed_world_frame:
+      frame:
+        id: base_link
+
+    # Gravity compensation
+    gravity_compensation:
+      frame:
+        id: ft_frame
+      CoG:
+        pos:
+          - 0.0
+          - 0.0
+          - 0.05
+      force: 0.0  # No gravity compensation for simulation
+
+    # Admittance parameters for 6 axes [x, y, z, rx, ry, rz]
+    admittance:
+      selected_axes:
+        - true   # x
+        - true   # y
+        - true   # z
+        - true   # rx
+        - true   # ry
+        - true   # rz
+
+      # Virtual mass (kg or kg*m^2 for rotation)
+      mass:
+        - 5.0
+        - 5.0
+        - 5.0
+        - 0.5
+        - 0.5
+        - 0.5
+
+      # Damping ratio (dimensionless, D / (2 * sqrt(M * S)))
+      damping_ratio:
+        - 2.0
+        - 2.0
+        - 2.0
+        - 2.0
+        - 2.0
+        - 2.0
+
+      # Stiffness (N/m or Nm/rad)
+      stiffness:
+        - 200.0
+        - 200.0
+        - 200.0
+        - 20.0
+        - 20.0
+        - 20.0
+
+    enable_parameter_update_without_reactivation: true

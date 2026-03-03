@@ -1,0 +1,102 @@
+cmake_minimum_required(VERSION 3.16)
+project(ros2_control_demo_example_16 LANGUAGES CXX)
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "(GNU|Clang)")
+  add_compile_options(-Wall -Wextra)
+endif()
+
+# set the same behavior for windows as it is on linux
+set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+
+# find dependencies
+set(HW_IF_INCLUDE_DEPENDS
+  pluginlib
+  rcpputils
+  hardware_interface
+)
+set(REF_GEN_INCLUDE_DEPENDS
+  geometry_msgs
+  rclcpp
+)
+
+# find dependencies
+find_package(backward_ros REQUIRED)
+find_package(ament_cmake REQUIRED)
+foreach(Dependency IN ITEMS ${HW_IF_INCLUDE_DEPENDS})
+  find_package(${Dependency} REQUIRED)
+endforeach()
+foreach(Dependency IN ITEMS ${REF_GEN_INCLUDE_DEPENDS})
+  find_package(${Dependency} REQUIRED)
+endforeach()
+
+## COMPILE
+add_executable(send_target_pose reference_generator/send_target_pose.cpp)
+
+ament_target_dependencies(
+  send_target_pose PUBLIC
+  ${REF_GEN_INCLUDE_DEPENDS}
+)
+
+add_library(
+  ros2_control_demo_example_16
+  SHARED
+  hardware/r6bot_hardware.cpp
+)
+
+target_compile_features(ros2_control_demo_example_16 PUBLIC cxx_std_17)
+target_include_directories(ros2_control_demo_example_16 PUBLIC
+$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/hardware/include>
+$<INSTALL_INTERFACE:include/ros2_control_demo_example_16>
+)
+ament_target_dependencies(
+  ros2_control_demo_example_16 PUBLIC
+  ${HW_IF_INCLUDE_DEPENDS}
+)
+
+# Export hardware plugins
+pluginlib_export_plugin_description_file(hardware_interface ros2_control_demo_example_16.xml)
+
+# INSTALL
+install(
+  DIRECTORY hardware/include/
+  DESTINATION include/ros2_control_demo_example_16
+)
+install(
+  DIRECTORY description/launch description/ros2_control description/urdf
+  DESTINATION share/ros2_control_demo_example_16
+)
+install(
+  DIRECTORY bringup/launch bringup/config
+  DESTINATION share/ros2_control_demo_example_16
+)
+install(
+    TARGETS send_target_pose
+    RUNTIME DESTINATION lib/ros2_control_demo_example_16
+)
+
+install(TARGETS ros2_control_demo_example_16
+  EXPORT export_ros2_control_demo_example_16
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
+)
+
+if(BUILD_TESTING)
+  find_package(ament_cmake_pytest REQUIRED)
+  ament_add_pytest_test(example_16_urdf_xacro test/test_urdf_xacro.py)
+
+  # Integration (launch) tests
+  find_package(ament_cmake_ros REQUIRED)
+  find_package(launch_testing_ament_cmake REQUIRED)
+  function(add_ros_isolated_launch_test path)
+    set(RUNNER "${ament_cmake_ros_DIR}/run_test_isolated.py")
+    add_launch_test("${path}" RUNNER "${RUNNER}" ${ARGN})
+  endfunction()
+  add_ros_isolated_launch_test(test/test_view_robot_launch.py)
+  add_ros_isolated_launch_test(test/test_r6bot_admittance_controller_launch.py)
+endif()
+
+## EXPORTS
+ament_export_targets(export_ros2_control_demo_example_16 HAS_LIBRARY_TARGET)
+ament_export_dependencies(${HW_IF_INCLUDE_DEPENDS} ${REF_GEN_INCLUDE_DEPENDS})
+ament_package()
