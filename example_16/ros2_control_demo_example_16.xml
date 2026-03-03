@@ -6,4 +6,11 @@
       Robot hardware plugin for 6 dof robot with admittance controller demo.
     </description>
   </class>
+  <class name="ros2_control_demo_example_16/AdmittanceController"
+         type="ros2_control_demo_example_16::AdmittanceController"
+         base_class_type="controller_interface::ControllerInterface">
+    <description>
+      Admittance controller plugin for 6 dof robot tutorial.
+    </description>
+  </class>
 </library>
