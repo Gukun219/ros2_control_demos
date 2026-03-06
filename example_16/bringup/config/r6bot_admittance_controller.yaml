@@ -39,7 +39,7 @@ admittance_controller:
     # Kinematics configuration
     kinematics:
       plugin_name: kinematics_interface_kdl/KinematicsInterfaceKDL
-      plugin_package: kinematics_interface_kdl
+      plugin_package: kinematics_interface
       base: base_link
       tip: tool0
       alpha: 0.0005
