@@ -74,13 +74,15 @@ int main(int argc, char ** argv)
   double radius = 0.1;
 
   RCLCPP_INFO(
-    node->get_logger(), "Publishing target poses for circular motion (radius=%.2f m, T=%.1f s)...",
+    node->get_logger(),
+    "Publishing continuous circular target poses (radius=%.2f m, period=%.1f s)...",
     radius, total_time);
 
   rclcpp::Rate rate(1.0 / dt);
-  for (int i = 0; i < num_points && rclcpp::ok(); i++)
+  int i = 0;
+  while (rclcpp::ok())
   {
-    double t = static_cast<double>(i) / num_points;
+    double t = static_cast<double>(i % num_points) / num_points;
     double angle = 2.0 * M_PI * t;
 
     geometry_msgs::msg::PoseStamped target_pose;
@@ -100,11 +102,9 @@ int main(int argc, char ** argv)
 
     pub->publish(target_pose);
     rate.sleep();
+    i++;
   }
 
-  RCLCPP_INFO(node->get_logger(), "Target pose sequence complete.");
-
-  rclcpp::spin(node);
   rclcpp::shutdown();
   return 0;
 }
