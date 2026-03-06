@@ -17,6 +17,7 @@ set(HW_IF_INCLUDE_DEPENDS
 set(REF_GEN_INCLUDE_DEPENDS
   geometry_msgs
   rclcpp
+  tf2_ros
 )
 
 # find dependencies

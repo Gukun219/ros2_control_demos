@@ -19,6 +19,8 @@
 
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
 
 using namespace std::chrono_literals;
 
@@ -33,15 +35,40 @@ int main(int argc, char ** argv)
   RCLCPP_INFO(node->get_logger(), "Waiting 3 seconds for controllers to start...");
   rclcpp::sleep_for(3s);
 
+  // Look up the actual tool0 pose in base_link frame as the home position.
+  // This avoids hardcoding a value that may not match the robot's real FK at zero config.
+  auto tf_buffer = std::make_shared<tf2_ros::Buffer>(node->get_clock());
+  auto tf_listener = std::make_shared<tf2_ros::TransformListener>(*tf_buffer);
+
+  RCLCPP_INFO(node->get_logger(), "Looking up tool0 pose in base_link frame...");
+  geometry_msgs::msg::TransformStamped tool0_transform;
+  while (rclcpp::ok()) {
+    try {
+      tool0_transform = tf_buffer->lookupTransform("base_link", "tool0", tf2::TimePointZero);
+      break;
+    } catch (const tf2::TransformException & ex) {
+      RCLCPP_WARN_THROTTLE(node->get_logger(), *node->get_clock(), 1000, "Waiting for TF: %s", ex.what());
+      rclcpp::sleep_for(100ms);
+    }
+  }
+
+  // Use the actual FK position of tool0 as the circle center
+  double home_x = tool0_transform.transform.translation.x;
+  double home_y = tool0_transform.transform.translation.y;
+  double home_z = tool0_transform.transform.translation.z;
+  // Use the actual FK orientation of tool0 to avoid IK orientation mismatch
+  double home_qx = tool0_transform.transform.rotation.x;
+  double home_qy = tool0_transform.transform.rotation.y;
+  double home_qz = tool0_transform.transform.rotation.z;
+  double home_qw = tool0_transform.transform.rotation.w;
+
+  RCLCPP_INFO(
+    node->get_logger(), "Home position: (%.3f, %.3f, %.3f)", home_x, home_y, home_z);
+
   // Send a circular trajectory of target poses
   double total_time = 10.0;
   double dt = 0.01;
   int num_points = static_cast<int>(total_time / dt);
-
-  // Home position of the tool0 frame (approximate for r6bot at zero configuration)
-  double home_x = 0.0;
-  double home_y = 0.0;
-  double home_z = 1.0;
 
   // Circular motion radius
   double radius = 0.1;
@@ -60,16 +87,16 @@ int main(int argc, char ** argv)
     target_pose.header.stamp = node->now();
     target_pose.header.frame_id = "base_link";
 
-    // Circular motion in the XY plane
+    // Circular motion in the XY plane around the actual home position
     target_pose.pose.position.x = home_x + radius * std::cos(angle);
     target_pose.pose.position.y = home_y + radius * std::sin(angle);
     target_pose.pose.position.z = home_z;
 
-    // Keep orientation fixed (identity quaternion)
-    target_pose.pose.orientation.x = 0.0;
-    target_pose.pose.orientation.y = 0.0;
-    target_pose.pose.orientation.z = 0.0;
-    target_pose.pose.orientation.w = 1.0;
+    // Use the actual tool0 orientation to avoid IK singularities
+    target_pose.pose.orientation.x = home_qx;
+    target_pose.pose.orientation.y = home_qy;
+    target_pose.pose.orientation.z = home_qz;
+    target_pose.pose.orientation.w = home_qw;
 
     pub->publish(target_pose);
     rate.sleep();
