@@ -112,10 +112,11 @@ return_type RobotSystem::read(const rclcpp::Time & /*time*/, const rclcpp::Durat
     joint_position_[i] = joint_position_command_[i];
   }
 
-  // Simulate a small sinusoidal force on z-axis to demonstrate admittance control response
+  // Simulate a large sinusoidal force on z-axis to demonstrate admittance control response
+  // 50N amplitude at 0.3 Hz — dominant enough to cause visible motion under low stiffness
   static double sim_time = 0.0;
   sim_time += period.seconds();
-  ft_states_[2] = 5.0 * std::sin(0.5 * sim_time);  // force.z: 5N sinusoidal
+  ft_states_[2] = 50.0 * std::sin(2.0 * M_PI * 0.3 * sim_time);  // force.z: 50N @ 0.3Hz
 
   return return_type::OK;
 }

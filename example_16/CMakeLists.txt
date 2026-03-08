@@ -19,10 +19,16 @@ set(REF_GEN_INCLUDE_DEPENDS
   rclcpp
   trajectory_msgs
 )
+set(COMPARISON_DEMO_DEPENDS
+  rclpy
+  tf2_ros
+  geometry_msgs
+)
 
 # find dependencies
 find_package(backward_ros REQUIRED)
 find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
 foreach(Dependency IN ITEMS ${HW_IF_INCLUDE_DEPENDS})
   find_package(${Dependency} REQUIRED)
 endforeach()
@@ -73,6 +79,16 @@ install(
 install(
     TARGETS send_target_pose
     RUNTIME DESTINATION lib/ros2_control_demo_example_16
+)
+# Install Python comparison demo scripts
+install(
+    PROGRAMS comparison_demo/record_and_compare.py
+    DESTINATION lib/ros2_control_demo_example_16
+    RENAME record_and_compare
+)
+install(
+    PROGRAMS comparison_demo/run_comparison.sh
+    DESTINATION lib/ros2_control_demo_example_16
 )
 
 install(TARGETS ros2_control_demo_example_16

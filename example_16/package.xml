@@ -23,6 +23,8 @@
   <depend>rclcpp_lifecycle</depend>
   <depend>rcpputils</depend>
 
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
+
   <exec_depend>admittance_controller</exec_depend>
   <exec_depend>controller_manager</exec_depend>
   <exec_depend>force_torque_sensor_broadcaster</exec_depend>
@@ -38,6 +40,11 @@
   <exec_depend>rviz2</exec_depend>
   <exec_depend>urdf</exec_depend>
   <exec_depend>xacro</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>tf2_ros_py</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>python3-matplotlib</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
 
   <test_depend>ament_cmake_pytest</test_depend>
   <test_depend>ament_cmake_ros</test_depend>
