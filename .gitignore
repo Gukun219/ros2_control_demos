@@ -1,0 +1,24 @@
+# ROS2 build artifacts
+build/
+install/
+log/
+
+# VS Code
+.vscode/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+
+# Editor backups
+*~
+*.swp
+*.swo

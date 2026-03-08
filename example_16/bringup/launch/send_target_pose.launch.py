@@ -13,15 +13,33 @@
 # limitations under the License.
 
 from launch import LaunchDescription
+from launch.substitutions import Command, FindExecutable, PathJoinSubstitution
 from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
+    # Get URDF via xacro
+    robot_description_content = Command(
+        [
+            PathJoinSubstitution([FindExecutable(name="xacro")]),
+            " ",
+            PathJoinSubstitution(
+                [
+                    FindPackageShare("ros2_control_demo_example_16"),
+                    "urdf",
+                    "r6bot.urdf.xacro",
+                ]
+            ),
+        ]
+    )
+    robot_description = {"robot_description": robot_description_content}
 
     send_target_pose_node = Node(
         package="ros2_control_demo_example_16",
         executable="send_target_pose",
         name="send_target_pose_node",
+        parameters=[robot_description],
     )
 
     nodes_to_start = [send_target_pose_node]

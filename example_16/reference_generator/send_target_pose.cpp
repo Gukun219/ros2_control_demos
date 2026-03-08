@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <chrono>
 #include <cmath>
-#include <memory>
-#include <string>
 
-#include <geometry_msgs/msg/pose_stamped.hpp>
+#include <kdl/chainfksolverpos_recursive.hpp>
+#include <kdl/chainiksolvervel_pinv.hpp>
+#include <kdl/jntarray.hpp>
+#include <kdl/tree.hpp>
+#include <kdl_parser/kdl_parser.hpp>
 #include <rclcpp/rclcpp.hpp>
-#include <tf2_ros/buffer.h>
-#include <tf2_ros/transform_listener.h>
+#include <trajectory_msgs/msg/joint_trajectory_point.hpp>
 
 using namespace std::chrono_literals;
 
@@ -28,81 +28,91 @@ int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
   auto node = std::make_shared<rclcpp::Node>("send_target_pose");
-  auto pub = node->create_publisher<geometry_msgs::msg::PoseStamped>(
-    "/admittance_controller/target_pose", 10);
+  auto pub = node->create_publisher<trajectory_msgs::msg::JointTrajectoryPoint>(
+    "/admittance_controller/joint_references", 10);
 
-  // Wait for the admittance controller to be active
-  RCLCPP_INFO(node->get_logger(), "Waiting 3 seconds for controllers to start...");
-  rclcpp::sleep_for(3s);
+  // Get robot description and build KDL chain
+  node->declare_parameter("robot_description", rclcpp::ParameterType::PARAMETER_STRING);
+  auto robot_param = rclcpp::Parameter();
+  node->get_parameter("robot_description", robot_param);
+  auto robot_description = robot_param.as_string();
 
-  // Look up the actual tool0 pose in base_link frame as the home position.
-  // This avoids hardcoding a value that may not match the robot's real FK at zero config.
-  auto tf_buffer = std::make_shared<tf2_ros::Buffer>(node->get_clock());
-  auto tf_listener = std::make_shared<tf2_ros::TransformListener>(*tf_buffer);
+  KDL::Tree robot_tree;
+  KDL::Chain chain;
+  kdl_parser::treeFromString(robot_description, robot_tree);
+  robot_tree.getChain("base_link", "tool0", chain);
 
-  RCLCPP_INFO(node->get_logger(), "Looking up tool0 pose in base_link frame...");
-  geometry_msgs::msg::TransformStamped tool0_transform;
-  while (rclcpp::ok()) {
-    try {
-      tool0_transform = tf_buffer->lookupTransform("base_link", "tool0", tf2::TimePointZero);
-      break;
-    } catch (const tf2::TransformException & ex) {
-      RCLCPP_WARN_THROTTLE(node->get_logger(), *node->get_clock(), 1000, "Waiting for TF: %s", ex.what());
-      rclcpp::sleep_for(100ms);
-    }
-  }
+  unsigned int n_joints = chain.getNrOfJoints();
+  auto joint_positions = KDL::JntArray(n_joints);
+  auto joint_velocities = KDL::JntArray(n_joints);
+  auto twist = KDL::Twist();
 
-  // Use the actual FK position of tool0 as the circle center
-  double home_x = tool0_transform.transform.translation.x;
-  double home_y = tool0_transform.transform.translation.y;
-  double home_z = tool0_transform.transform.translation.z;
-  // Use the actual FK orientation of tool0 to avoid IK orientation mismatch
-  double home_qx = tool0_transform.transform.rotation.x;
-  double home_qy = tool0_transform.transform.rotation.y;
-  double home_qz = tool0_transform.transform.rotation.z;
-  double home_qw = tool0_transform.transform.rotation.w;
+  // Create KDL solvers
+  auto fk_solver = std::make_shared<KDL::ChainFkSolverPos_recursive>(chain);
+  auto ik_vel_solver = std::make_shared<KDL::ChainIkSolverVel_pinv>(chain, 0.0000001);
+
+  // Compute FK at home (all-zero) to get circle center
+  KDL::Frame home_frame;
+  fk_solver->JntToCart(joint_positions, home_frame);
+  double home_x = home_frame.p.x();
+  double home_y = home_frame.p.y();
+  double home_z = home_frame.p.z();
 
   RCLCPP_INFO(
-    node->get_logger(), "Home position: (%.3f, %.3f, %.3f)", home_x, home_y, home_z);
+    node->get_logger(), "Home position from FK: (%.3f, %.3f, %.3f)", home_x, home_y, home_z);
 
-  // Send a circular trajectory of target poses
-  double total_time = 10.0;
-  double dt = 0.01;
-  int num_points = static_cast<int>(total_time / dt);
-
-  // Circular motion radius
-  double radius = 0.3;
+  // Circular trajectory parameters
+  double radius = 0.05;
+  double period = 10.0;
+  double omega = 2.0 * M_PI / period;
+  double dt = 0.01;  // 100 Hz, matching controller update rate
 
   RCLCPP_INFO(
     node->get_logger(),
-    "Publishing continuous circular target poses (radius=%.2f m, period=%.1f s)...",
-    radius, total_time);
+    "Publishing joint references for circular trajectory (radius=%.3f m, period=%.1f s)...",
+    radius, period);
+
+  // Wait for controllers to start
+  RCLCPP_INFO(node->get_logger(), "Waiting 3 seconds for controllers to start...");
+  rclcpp::sleep_for(3s);
+
+  trajectory_msgs::msg::JointTrajectoryPoint point_msg;
+  point_msg.positions.resize(n_joints);
+  point_msg.velocities.resize(n_joints);
 
   rclcpp::Rate rate(1.0 / dt);
-  int i = 0;
+  double angle = 0.0;
+
   while (rclcpp::ok())
   {
-    double t = static_cast<double>(i % num_points) / num_points;
-    double angle = 2.0 * M_PI * t;
+    // Cartesian velocity: tangent to the circle
+    twist.vel.x(-radius * omega * std::sin(angle));
+    twist.vel.y(radius * omega * std::cos(angle));
+    twist.vel.z(0.0);
+    twist.rot.x(0.0);
+    twist.rot.y(0.0);
+    twist.rot.z(0.0);
 
-    geometry_msgs::msg::PoseStamped target_pose;
-    target_pose.header.stamp = node->now();
-    target_pose.header.frame_id = "base_link";
+    // Convert Cartesian twist to joint velocities via Jacobian pseudo-inverse
+    ik_vel_solver->CartToJnt(joint_positions, twist, joint_velocities);
 
-    // Circular motion in the XY plane around the actual home position
-    target_pose.pose.position.x = home_x + radius * std::cos(angle);
-    target_pose.pose.position.y = home_y + radius * std::sin(angle);
-    target_pose.pose.position.z = home_z;
+    // Publish current joint state as reference
+    std::memcpy(
+      point_msg.positions.data(), joint_positions.data.data(),
+      n_joints * sizeof(double));
+    std::memcpy(
+      point_msg.velocities.data(), joint_velocities.data.data(),
+      n_joints * sizeof(double));
 
-    // Use the actual tool0 orientation to avoid IK singularities
-    target_pose.pose.orientation.x = home_qx;
-    target_pose.pose.orientation.y = home_qy;
-    target_pose.pose.orientation.z = home_qz;
-    target_pose.pose.orientation.w = home_qw;
+    pub->publish(point_msg);
 
-    pub->publish(target_pose);
+    // Integrate joint velocities to update positions
+    joint_positions.data += joint_velocities.data * dt;
+
+    // Advance angle
+    angle += omega * dt;
+
     rate.sleep();
-    i++;
   }
 
   rclcpp::shutdown();

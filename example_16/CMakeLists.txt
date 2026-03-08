@@ -15,9 +15,9 @@ set(HW_IF_INCLUDE_DEPENDS
   hardware_interface
 )
 set(REF_GEN_INCLUDE_DEPENDS
-  geometry_msgs
+  kdl_parser
   rclcpp
-  tf2_ros
+  trajectory_msgs
 )
 
 # find dependencies
