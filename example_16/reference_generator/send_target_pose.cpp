@@ -71,7 +71,7 @@ int main(int argc, char ** argv)
   int num_points = static_cast<int>(total_time / dt);
 
   // Circular motion radius
-  double radius = 0.1;
+  double radius = 0.3;
 
   RCLCPP_INFO(
     node->get_logger(),
