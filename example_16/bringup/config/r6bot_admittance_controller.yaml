@@ -54,7 +54,7 @@ admittance_controller:
     # Control frame for admittance calculation
     control:
       frame:
-        id: tool0
+        id: base_link
 
     # Fixed world frame (gravity reference)
     fixed_world_frame:
